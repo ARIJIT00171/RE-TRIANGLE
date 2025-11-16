@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=InstallEnvironment
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=05:00:00
+#SBATCH --output=slurm_outputs/install_env_2_%A.out
+
+module purge
+module load 2024
+module load Anaconda3/2024.06-1
+
+source activate triangle
+
+pip install gdown datasets
+
