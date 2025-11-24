@@ -14,9 +14,7 @@ from utils.logger import LOGGER
 from utils.distributed import  all_gather_list, ddp_allgather
 from utils.tool import NoOp
 from easydict import EasyDict as edict
-from utils.area import area_computation
 from utils.ir_logging import save_qrels_t2v, save_qrels_v2t, save_trec_run
-import wandb
 
 
 def evaluate_mm(model, val_dataloaders, run_cfg, global_step):
@@ -102,6 +100,73 @@ def evaluate_qa(model, tasks, eval_loader, run_cfg, global_step, dset_name):
 
 
 
+@torch.no_grad()
+def evaluate_cap(model, tasks, eval_loader, run_cfg, global_step, dset_name):
+    val_log = {}
+    captioner_mode = model.config.captioner_mode
+    generate_nums =  model.config.generate_nums
+    result_folder = os.path.join(run_cfg.output_dir, f'results_test_{dset_name}')
+    os.makedirs(result_folder, exist_ok=True)
+    subtasks = tasks.split('%')[1:]
+    store_dict = {}
+    if captioner_mode:
+        for task in subtasks:
+            store_dict[f'generated_captions_{task}'] = {}
+
+    else:
+        for task in subtasks:
+            store_dict[f'generated_captions_{task}'] = []
+
+
+    if dist.get_rank() == 0:
+        pbar = tqdm()
+    else:
+        pbar = NoOp()
+
+  
+    gen_idx = 0
+    for batch in eval_loader:
+        batch = edict(batch)
+        ids = batch.ids
+        evaluation_dict = model(batch, tasks, compute_loss=False)
+
+        for task in subtasks:
+            sents = evaluation_dict[f'generated_captions_{task}']       
+            if not captioner_mode:    
+                for i in range(len(sents)):
+                    store_dict[f'generated_captions_{task}'].append({'video_id':ids[i], 'caption': sents[i]})
+                
+            else:
+                for i in range(len(ids)):
+                    store_dict[f'generated_captions_{task}'][ids[i]] = sents[i*generate_nums : (i+1)*generate_nums]
+                if  len(store_dict[f'generated_captions_{task}']) > 20000:
+                    rank= dist.get_rank()
+                    json.dump(store_dict[f'generated_captions_{task}'],open(os.path.join(result_folder, f'gencap_rank{rank}_idx{gen_idx}_{task}.json'), 'w'))
+                    gen_idx+=1
+                    store_dict[f'generated_captions_{task}'] = {}
+            pbar.update(1)
+    
+    if captioner_mode:
+        for task in subtasks:
+            if len(store_dict[f'generated_captions_{task}']) > 0:
+                rank= dist.get_rank()
+                json.dump(store_dict[f'generated_captions_{task}'],open(os.path.join(result_folder, f'gencap_rank{rank}_idx{gen_idx}_{task}.json'), 'w'))
+                gen_idx+=1
+        return val_log
+
+
+    annfile_path = eval_loader.dataset.annfile
+    pbar.close()
+
+    for task in subtasks:
+        results = [i for j in all_gather_list(store_dict[f'generated_captions_{task}'])  for i in j]
+        if dist.get_rank()==0:
+            val_log[f'cap_{task}'] = compute_metric_cap(results, annfile_path) 
+            json.dump(results,open(os.path.join(result_folder, f'step_{global_step}_{task}.json'), 'w'))
+    
+    return val_log
+
+
 
 @torch.no_grad()
 def evaluate_ret(model, tasks, val_loader, global_step):
@@ -114,27 +179,15 @@ def evaluate_ret(model, tasks, val_loader, global_step):
     subtasks = tasks.split('%')[1:]
     store_dict = {}
     feat_t = []
-    feat_a = []
-    feat_v = []
-    feat_s = []
-    feat_d = []
 
     for task in subtasks:
-        # store_dict[f'feat_cond_{task}'] = []
+        store_dict[f'feat_cond_{task}'] = []
         store_dict[f'condition_feats_{task}'] = []        
 
-    for i, batch in tqdm(enumerate(val_loader), total=len(val_loader)):
+    for i, batch in enumerate(val_loader):
         batch = edict(batch)
         evaluation_dict= model(batch, tasks, compute_loss=False)
-        # evaluation_dict = {k: v.cpu() if isinstance(v, torch.Tensor) else v for k, v in evaluation_dict.items()}
-        # change -> moved to cpu
         feat_t.append(evaluation_dict['feat_t'].detach().cpu())
-        feat_a.append(evaluation_dict['feat_a'].detach().cpu())
-        feat_v.append(evaluation_dict['feat_v'].detach().cpu())
-        if 'feat_s' in evaluation_dict.keys():
-            feat_s.append(evaluation_dict['feat_s'].detach().cpu())
-        if 'feat_d' in evaluation_dict.keys():
-            feat_d.append(evaluation_dict['feat_d'].detach().cpu())
       
         input_ids.append(evaluation_dict['input_ids'])
         attention_mask.append(evaluation_dict['attention_mask'])
@@ -150,207 +203,131 @@ def evaluate_ret(model, tasks, val_loader, global_step):
 
   
         for task in subtasks:
-            # store_dict[f'feat_cond_{task}'].append(evaluation_dict[f'feat_cond_{task}'])    
+            store_dict[f'feat_cond_{task}'].append(evaluation_dict[f'feat_cond_{task}'].detach().cpu())    
             store_dict[f'condition_feats_{task}'].append(evaluation_dict[f'condition_feats_{task}'].detach().cpu())
 
-        
-    #change -> move area to model device
     device = next(model.parameters()).device
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  change -> moved back to gpu
-
+            
     ids = [j for i in all_gather_list(ids) for j in i]
     ids_txt = [j for i in all_gather_list(ids_txt) for j in i]
-    input_ids = torch.cat([i for i in input_ids],dim=0).to(device)
-    input_ids = ddp_allgather(input_ids)
-    attention_mask = torch.cat([i for i in attention_mask],dim=0).to(device)
-    attention_mask = ddp_allgather(attention_mask)
         
     feat_t = torch.cat(feat_t, dim = 0).to(device)
     feat_t = ddp_allgather(feat_t)
 
-    feat_a = torch.cat(feat_a, dim = 0).to(device)
-    feat_a = ddp_allgather(feat_a)
+    input_ids = torch.cat([i for i in input_ids],dim=0).to(device)
+    input_ids = ddp_allgather(input_ids)
+    attention_mask = torch.cat([i for i in attention_mask],dim=0).to(device)
+    attention_mask = ddp_allgather(attention_mask)
 
-    feat_v = torch.cat(feat_v, dim = 0).to(device)
-    feat_v = ddp_allgather(feat_v)
+    ### compute itc_score
 
+    trec_itc_t2v = {}   # text -> video
+    trec_itc_v2t = {}   # video -> text
 
-    area = area_computation(feat_t,feat_v,feat_a)
-        
-    min_values_area = torch.min(area, 1).values
-    mean_values_area = torch.mean(min_values_area)
-    val_log[f"area_value"] = {"value": mean_values_area.item()}
-    
-    
-    log = compute_metric_ret_area(area, ids, ids_txt, direction='forward')
-    log = {k.replace('forward','area_T2D'): v for k,v in log.items()}
-
-    val_log[f'ret_area_forward'] = log
-
-    log = compute_metric_ret_area(area.T, ids, ids_txt, direction='forward')
-    log = {k.replace('backward','area_D2T'): v for k,v in log.items()}
-
-    val_log[f'ret_area_backard'] = log
-
-    # video_similarity = feat_t @ feat_v.T
-
-    # log = compute_metric_ret_area((area - video_similarity), ids, ids_txt, direction='backward')
-    # log = {k.replace('backward','area_video'): v for k,v in log.items()}
-    # val_log[f'ret_area_back_with_video'] = log
-    
-
-    store_dict[f'condition_feats_{task}'] = torch.cat(store_dict[f'condition_feats_{task}'],dim=0)
-    itm_rerank_num = model.config.itm_rerank_num
-    #itm_rerank_num = 30
-    score_matrix = refine_score_matrix(store_dict[f'condition_feats_{task}'], input_ids, attention_mask, -area.to(device) , model, itm_rerank_num, direction='forward')#-(area-video_similarity)
-    itm_area_T2V_mat = score_matrix #for TREC
-    log = compute_metric_ret(score_matrix, ids, ids_txt, direction='forward')
-    log = {k.replace('forward','area_ITM_T2D'): v for k,v in log.items()}
-
-    
-    score_matrix = refine_score_matrix(store_dict[f'condition_feats_{task}'], input_ids, attention_mask, -area.to(device), model, itm_rerank_num, direction='backward') #-(area-video_similarity)
-    itm_area_V2T_mat = score_matrix #for TREC
-    log2 = compute_metric_ret(score_matrix, ids, ids_txt, direction='backward')
-    log2 = {k.replace('backward','area_ITM_D2T'): v for k,v in log2.items()}
-    log.update(log2)
-    
-    val_log[f'ret_itm_area'] = log
-    
-    
-    score_cosine_TV = torch.matmul(feat_t, feat_v.permute(1,0))
-    cosine_TV = compute_metric_ret(score_cosine_TV, ids, ids_txt, direction='forward')
-    val_log[f'cosine_TV'] = cosine_TV
-    
-    score_cosine_VT = torch.matmul(feat_v, feat_t.permute(1,0))
-    cosine_VT = compute_metric_ret(score_cosine_VT, ids, ids_txt, direction='forward')
-    val_log[f'cosine_VT'] = cosine_VT
-    
-    score_cosine_TA = torch.matmul(feat_t, feat_a.permute(1,0))
-    cosine_TA = compute_metric_ret(score_cosine_TA, ids, ids_txt, direction='forward')
-    val_log[f'cosine_TA'] = cosine_TA
-    
-    score_cosine_AT = torch.matmul(feat_a, feat_t.permute(1,0))
-    cosine_AT = compute_metric_ret(score_cosine_AT, ids, ids_txt, direction='forward')
-    val_log[f'cosine_AT'] = cosine_AT
-
-
-    
-    ## compute itc_score
     for task in subtasks:
-        if  task == "tvas" or task == "tva":
-            continue
-        #store_dict[f'feat_cond_{task}'] =  torch.cat(store_dict[f'feat_cond_{task}'], dim = 0)
-        #store_dict[f'feat_cond_{task}'] = ddp_allgather(store_dict[f'feat_cond_{task}'])
-        if task=='tv':
-            score_matrix_t_cond = torch.matmul(feat_t, feat_v.permute(1,0))
-        elif task=='ta':
-            score_matrix_t_cond = torch.matmul(feat_t, feat_a.permute(1,0))
+        store_dict[f'feat_cond_{task}'] =  torch.cat(store_dict[f'feat_cond_{task}'], dim = 0).to(device)
+        store_dict[f'feat_cond_{task}'] = ddp_allgather(store_dict[f'feat_cond_{task}'])
+        score_matrix_t_cond = torch.matmul(feat_t, store_dict[f'feat_cond_{task}'].permute(1,0))
         store_dict[f'score_matrix_t_cond_{task}'] = score_matrix_t_cond
+
+        # For TREC: T2V = (num_txt, num_vid); V2T = transpose
+        trec_itc_t2v[task] = score_matrix_t_cond.detach()
+        trec_itc_v2t[task] = score_matrix_t_cond.detach().T
+
         log = compute_metric_ret(score_matrix_t_cond, ids, ids_txt, direction='forward')
         log = {k.replace('forward','video'): v for k,v in log.items()}
-        if model.config.ret_bidirection_evaluation:
-            log2 = compute_metric_ret(score_matrix_t_cond, ids, ids_txt, direction='backward')
-            log2 = {k.replace('backward','txt'): v for k,v in log2.items()}
-            log.update(log2)
+
+        #if model.config.ret_bidirection_evaluation:
+        log2 = compute_metric_ret(score_matrix_t_cond, ids, ids_txt, direction='backward')
+        log2 = {k.replace('backward','txt'): v for k,v in log2.items()}
+        log.update(log2)
 
         val_log[f'ret_itc_{task}'] = log
 
 
     #### compute itm_score
+
+    trec_itm_t2v = {}   # text -> video
+    trec_itm_v2t = {}   # video -> text
+
     for task in subtasks:
-        if  task == "tvas" or task == "tva":
-            continue
-        if task!="tvas" and task!="tva":
-            store_dict[f'condition_feats_{task}'] = torch.cat(store_dict[f'condition_feats_{task}'],dim=0)
+        store_dict[f'condition_feats_{task}'] = torch.cat(store_dict[f'condition_feats_{task}'],dim=0)
         itm_rerank_num = model.config.itm_rerank_num
         score_matrix = refine_score_matrix(store_dict[f'condition_feats_{task}'], input_ids, attention_mask, store_dict[f'score_matrix_t_cond_{task}'], model, itm_rerank_num, direction='forward')
+        trec_itm_t2v[task] = score_matrix.detach()
         log = compute_metric_ret(score_matrix, ids, ids_txt, direction='forward')
         log = {k.replace('forward','video'): v for k,v in log.items()}
 
-        if model.config.ret_bidirection_evaluation:
-            score_matrix = refine_score_matrix(store_dict[f'condition_feats_{task}'], input_ids, attention_mask, store_dict[f'score_matrix_t_cond_{task}'], model, itm_rerank_num, direction='backward')
-            log2 = compute_metric_ret(score_matrix, ids, ids_txt, direction='backward')
-            log2 = {k.replace('backward','txt'): v for k,v in log2.items()}
-            log.update(log2)
+        #if model.config.ret_bidirection_evaluation:
+        score_matrix = refine_score_matrix(store_dict[f'condition_feats_{task}'], input_ids, attention_mask, store_dict[f'score_matrix_t_cond_{task}'], model, itm_rerank_num, direction='backward')
+        trec_itm_v2t[task] = score_matrix.detach()
+        log2 = compute_metric_ret(score_matrix, ids, ids_txt, direction='backward')
+        log2 = {k.replace('backward','txt'): v for k,v in log2.items()}
+        log.update(log2)
 
         val_log[f'ret_itm_{task}'] = log
 
-
+    # ---------------------------------------------------
+    # Save TREC + QRELS (rank 0 only)
+    # ---------------------------------------------------
     if dist.get_rank() == 0:
-        # ---------------------------------------------------
-        # QRELS + TREC RUNS
-        # ---------------------------------------------------
-        dataset_name = getattr(getattr(val_loader, "dataset", None), "name", "unknown")
+        dataset = getattr(val_loader, "dataset", None)
+        dataset_name = getattr(dataset, "name", getattr(dataset, "dataset_name", "unknown"))
         trec_dir = os.path.join("trec_runs", dataset_name)
         os.makedirs(trec_dir, exist_ok=True)
 
-        # 1) QRELS: separate files for T2V and V2T
+        # QRELS for both directions
         qrels_t2v_path = os.path.join(trec_dir, "qrels_t2v.txt")
         qrels_v2t_path = os.path.join(trec_dir, "qrels_v2t.txt")
         save_qrels_t2v(ids, ids_txt, qrels_t2v_path)
         save_qrels_v2t(ids, ids_txt, qrels_v2t_path)
 
-        # 2) Cosine TV / VT
-        save_trec_run(
-            score_matrix=score_cosine_TV,
-            query_ids=ids_txt,          # T2V: text queries
-            doc_ids=ids,                # video docs
-            out_path=os.path.join(trec_dir, "cosine_T2V.txt"),
-            run_name="cosine_T2V",
-        )
+        for task in subtasks:
+            # ---- ITC TREC runs ----
+            itc_t2v = trec_itc_t2v[task]
+            itc_v2t = trec_itc_v2t[task]
 
-        save_trec_run(
-            score_matrix=score_cosine_VT,
-            query_ids=ids,              # V2T: video queries
-            doc_ids=ids_txt,            # text docs
-            out_path=os.path.join(trec_dir, "cosine_V2T.txt"),
-            run_name="cosine_V2T",
-        )
+            save_trec_run(
+                score_matrix=itc_t2v,
+                query_ids=ids_txt,   # T2V: text queries
+                doc_ids=ids,         # video docs
+                out_path=os.path.join(trec_dir, f"itc_{task}_T2V.txt"),
+                run_name=f"itc_{task}_T2V",
+            )
 
-        # 3) Triangle -area TV / VT (area is distance; use -area as score)
-        area_T2V_scores = -area           # (num_txt, num_vid)
-        area_V2T_scores = (-area).T       # (num_vid, num_txt)
+            save_trec_run(
+                score_matrix=itc_v2t,
+                query_ids=ids,       # V2T: video queries
+                doc_ids=ids_txt,     # text docs
+                out_path=os.path.join(trec_dir, f"itc_{task}_V2T.txt"),
+                run_name=f"itc_{task}_V2T",
+            )
 
-        save_trec_run(
-            score_matrix=area_T2V_scores,
-            query_ids=ids_txt,
-            doc_ids=ids,
-            out_path=os.path.join(trec_dir, "area_T2V.txt"),
-            run_name="area_T2V",
-        )
+            # ---- ITM TREC runs (only T2V always; V2T if computed) ----
+            #if task in trec_itm_t2v:
+            itm_t2v = trec_itm_t2v[task]
+            save_trec_run(
+                score_matrix=itm_t2v,
+                query_ids=ids_txt,
+                doc_ids=ids,
+                out_path=os.path.join(trec_dir, f"itm_{task}_T2V.txt"),
+                run_name=f"itm_{task}_T2V",
+            )
 
-        save_trec_run(
-            score_matrix=area_V2T_scores,
-            query_ids=ids,
-            doc_ids=ids_txt,
-            out_path=os.path.join(trec_dir, "area_V2T.txt"),
-            run_name="area_V2T",
-        )
+            #if model.config.ret_bidirection_evaluation and task in trec_itm_v2t:
+            itm_v2t = trec_itm_v2t[task]
+            save_trec_run(
+                score_matrix=itm_v2t,
+                query_ids=ids,
+                doc_ids=ids_txt,
+                out_path=os.path.join(trec_dir, f"itm_{task}_V2T.txt"),
+                run_name=f"itm_{task}_V2T",
+            )
 
-        # 4) ITM-on-area TV / VT (reuse itm_area_*_mat)
-        save_trec_run(
-            score_matrix=itm_area_T2V_mat,
-            query_ids=ids_txt,
-            doc_ids=ids,
-            out_path=os.path.join(trec_dir, "ITMarea_T2V.txt"),
-            run_name="ITMarea_T2V",
-        )
-
-        save_trec_run(
-            score_matrix=itm_area_V2T_mat,
-            query_ids=ids,
-            doc_ids=ids_txt,
-            out_path=os.path.join(trec_dir, "ITMarea_V2T.txt"),
-            run_name="ITMarea_V2T",
-        )
-
-        wandb.log(val_log)
-        
     return val_log
 
 def refine_score_matrix(condition_feats, input_ids, attention_mask, score_matrix_t_cond, model, itm_rerank_num, direction='forward'):
 
-    # change -> move to cuda
     device = next(model.parameters()).device
     score_matrix_t_cond = score_matrix_t_cond.to(device)
 
@@ -428,6 +405,7 @@ def refine_score_matrix(condition_feats, input_ids, attention_mask, score_matrix
 def compute_metric_ret(score_matrix, ids, ids_txt, direction='forward'):
 
 
+
     assert score_matrix.shape == (len(ids_txt),len(ids))
 
     if direction == 'forward': ### text-to-vision retrieval
@@ -480,62 +458,6 @@ def compute_metric_ret(score_matrix, ids, ids_txt, direction='forward'):
 
     return eval_log
 
-
-def compute_metric_ret_area(score_matrix, ids, ids_txt, direction='forward'):
-
-
-
-    assert score_matrix.shape == (len(ids_txt),len(ids))
-
-    if direction == 'forward': ### text-to-vision retrieval
-        indice_matrix = score_matrix.sort(dim=-1,descending=False)[1].tolist()
-        rank = []
-        for i in range(len(ids_txt)):
-            # gt_indice = ids.index(ids_txt[i][0])
-            gt_indice = ids.index(ids_txt[i])
-            rank.append(indice_matrix[i].index(gt_indice))
-        
-        rank = torch.tensor(rank).to(score_matrix)
-        
-        vr_r1 = (rank < 1).sum().item() / len(ids_txt)
-        vr_r5 = (rank < 5).sum().item() / len(ids_txt)
-        vr_r10 = (rank < 10).sum().item() / len(ids_txt)
-        v_medianR = torch.median(rank).item() +1
-        v_meanR = torch.mean(rank).item() +1
- 
-        eval_log = {'forward_r1': round(vr_r1*100,1),
-                    'forward_recall': f'{round(vr_r1*100,1)}/{round(vr_r5*100,1)}/{round(vr_r10*100,1)}',
-                    'forward_ravg': round((vr_r1 + vr_r5 + vr_r10)/3 *100,1)
-                   }
-   
-    else: ### vision-to-text retrieval
-       
-        indice_matrix = score_matrix.sort(dim=0,descending=False)[1].permute(1,0).tolist()
-        rank = []
-        for i in range(len(ids)):
-            gt_indices=[]
-            for idx, id in enumerate(ids_txt):
-                if id == ids[i]:
-                    gt_indices.append(idx)
-
-            rank.append(min([indice_matrix[i].index(idx) for idx in gt_indices]))
-        
-        rank = torch.tensor(rank).to(score_matrix)
-        
-        tr_r1 = (rank < 1).sum().item() / len(ids)
-        tr_r5 = (rank < 5).sum().item() / len(ids)
-        tr_r10 = (rank < 10).sum().item() / len(ids)
-        t_medianR = torch.median(rank).item() +1
-        t_meanR = torch.mean(rank).item() +1
-
-        eval_log = {
-                    'backward_r1': round(tr_r1*100,1),
-                    'backward_recall': f'{round(tr_r1*100,1)}/{round(tr_r5*100,1)}/{round(tr_r10*100,1)}',
-                    'backward_ravg': round((tr_r1 + tr_r5 + tr_r10)/3 *100,1)
-                  }
-    
-
-    return eval_log
 
 
 
