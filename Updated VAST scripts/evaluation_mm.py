@@ -315,7 +315,7 @@ def evaluate_ret(model, tasks, val_loader, global_step):
             )
 
             #if model.config.ret_bidirection_evaluation and task in trec_itm_v2t:
-            itm_v2t = trec_itm_v2t[task]
+            itm_v2t = trec_itm_v2t[task].T
             save_trec_run(
                 score_matrix=itm_v2t,
                 query_ids=ids,

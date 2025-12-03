@@ -105,7 +105,8 @@ class AnnoIndexedDataset(Dataset):
       
 
         
-        raw_captions = anno['desc'] if 'desc' in anno else anno['caption'] 
+        raw_captions = anno['desc'] if 'desc' in anno else anno['caption']
+        raw_captions = raw_captions[0] if isinstance(raw_captions, list) else raw_captions  #copied from triangle code to read only 1 caption
         num_samples = len(raw_captions) if isinstance(raw_captions, list) else 1
         id_txt = [id_] * num_samples
 
