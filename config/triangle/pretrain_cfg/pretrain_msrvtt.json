@@ -1,0 +1,45 @@
+{ "run_cfg":
+  {"default":"./config/triangle/default_run_cfg.json",
+  "learning_rate": 5e-05
+  },
+  
+  
+  "model_cfg":
+  { "default":"./config/triangle/default_model_cfg.json",
+    "vision_encoder_type":"evaclip01_giant"
+
+},
+    "data_cfg":{"train":
+
+            [{"type":"annoindexed",
+            "training":true,
+            "name": "msrvtt_ret",
+            "txt": "/home/scur1693/Triangle_Refactor/data/annotations/msrvtt/descs_ret_train.json",
+            "vision": "/home/scur1693/Datasets/MSRVTT/videos/all",
+            "audio": "/home/scur1693/Datasets/MSRVTT/audios",
+            "vision_transforms":"crop_flip",
+            "datatype": "video_rawvideo",
+            "vision_format": "video_rawvideo",
+            "vision_sample_num": 8,
+            "audio_sample_num": 1,
+            "task" : "ret%tv%ta",
+            "epoch": 4,
+            "n_workers":8,
+            "batch_size": 64 
+        }],
+        "val":                
+        [{
+            "type":"annoindexed",
+            "training":false,
+            "name": "msrvtt_ret",
+            "txt": "/home/scur1693/Triangle_Refactor/data/annotations/msrvtt/descs_ret_test.json",
+            "vision_transforms":"crop_flip",
+            "vision_format": "video_rawvideo",
+            "vision": "/home/scur1693/Datasets/MSRVTT_Test/videos_test",
+            "audio": "/home/scur1693/Datasets/MSRVTT_Test/audios_test",
+            "vision_sample_num": 8, 
+            "audio_sample_num": 1,   
+            "task" : "ret%tv%ta%tvas",
+            "n_workers": 8,
+            "batch_size": 64 
+        }]}}
