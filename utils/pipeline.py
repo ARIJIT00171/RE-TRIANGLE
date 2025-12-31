@@ -41,8 +41,8 @@ def train(model, optimizer, train_loader, val_loaders, final_config, start_step=
 
     for step, (name, batch) in enumerate(train_loader):
         task = name.split('--')[0]
+        optimizer.zero_grad()
 
-        optimizer.zero_grad(set_to_none=True)
         if run_cfg.load_dtype == "fp16":
             with autocast(dtype=torch.float16):
                 loss_dict = model(batch, tasks=task, compute_loss=True, global_step=global_step)
@@ -88,13 +88,8 @@ def train(model, optimizer, train_loader, val_loaders, final_config, start_step=
 
         if run_cfg.load_dtype == "fp16":
             scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            if run_cfg.grad_norm != -1:
-                clip_grad_norm_(model.parameters(), run_cfg.grad_norm)
         else:
             loss.backward()
-            if run_cfg.grad_norm != -1:
-                clip_grad_norm_(model.parameters(), run_cfg.grad_norm)
 
         # ---- DEBUG: grad norm per param-group (add here) ----
         def group_grad_norm(pg):
@@ -128,13 +123,7 @@ def train(model, optimizer, train_loader, val_loaders, final_config, start_step=
             if dist.is_initialized():
                 dist.barrier()
 
-            del loss
-            torch.cuda.empty_cache()
-
-            model.eval()
-            with torch.inference_mode():
-                eval_log = evaluate_fn(model, val_loaders, final_config, global_step=global_step)
-            model.train()
+            eval_log = evaluate_fn(model, val_loaders, final_config, global_step=global_step)
 
             if dist.get_rank() == 0:
                 for task_name, val_log in eval_log.items():
@@ -157,6 +146,9 @@ def train(model, optimizer, train_loader, val_loaders, final_config, start_step=
                             LOGGER.info(metric_logger_dict[eval_name][str(best_step)])
 
                 model_saver.save(model, global_step, optimizer, best_indicator, str_to_bool_mapper[run_cfg.save_best])
+
+            if dist.is_initialized():
+                dist.barrier()
 
         if global_step >= run_cfg.num_train_steps:
             break

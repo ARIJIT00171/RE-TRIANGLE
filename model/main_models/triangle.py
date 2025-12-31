@@ -63,6 +63,7 @@ class TRIANGLE(MMGeneralModule):
         self.max_subtitle_len = config.max_subtitle_len
 
     def construct_multimodal_encoder(self):
+        LOGGER.info("Loading BertForMaskedLM Model with Cross Attention weights")
         bertconfig = BertConfig.from_pretrained(bert_pretrain_dir)
         bertconfig.add_cross_attention = True
         bertconfig.is_decoder = True
@@ -80,6 +81,7 @@ class TRIANGLE(MMGeneralModule):
         multimodal_encoder.tokenizer.mask_token_id = (multimodal_encoder.tokenizer.convert_tokens_to_ids(['[MASK]']))[0]
         text_masker = TokenMasker(mask_token=multimodal_encoder.tokenizer.mask_token_id, range_start=106,
                                   range_end=30522)
+        LOGGER.info("BertForMaskedLM Model with Cross Attention weights loaded successfully")
 
         return multimodal_encoder, multimodal_dim, text_masker
 

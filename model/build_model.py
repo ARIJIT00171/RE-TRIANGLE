@@ -32,6 +32,8 @@ def build_model(final_config, device):
         checkpoint = load_from_pretrained_dir(final_config)
         LOGGER.info("load from pretrained dir {} successful".format(final_config.run_cfg.pretrain_dir))
 
+        # Saving multimodal
+
     # load ckpt from specific path
     if final_config.run_cfg.checkpoint:
         checkpoint = torch.load(final_config.run_cfg.checkpoint, map_location='cpu')

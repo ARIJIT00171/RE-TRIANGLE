@@ -31,7 +31,7 @@ class ModelSaver(object):
         if optimizer is not None:
             if hasattr(optimizer, '_amp_stash'):
                 pass  # TODO fp16 optimizer
-            previous_state = [i  for i in os.listdir(self.output_dir) if i.startswith('optimizer')]
+            previous_state = [i for i in os.listdir(self.output_dir) if i.startswith('optimizer')]
             if self.remove_before_ckpt:
                 for p in previous_state:
                     os.remove(os.path.join(self.output_dir, p))

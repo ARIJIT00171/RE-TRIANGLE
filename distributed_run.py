@@ -2,7 +2,7 @@ import torch.distributed as dist
 import warnings
 import wandb
 
-from dataset.build_dataloader import create_train_dataloaders, create_val_dataloaders
+from dataset_utils.build_dataloader import create_train_dataloaders, create_val_dataloaders
 from model.build_model import build_model
 from model.build_optimizer import build_optimizer
 from utils.args import get_args

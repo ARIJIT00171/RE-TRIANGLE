@@ -1,8 +1,5 @@
 # RE-TRIANGLE: Does TRIANGLE Enable Multimodal Alignment Beyond Cosine Similarity?
 
-![Animation](https://github.com/ARIJIT00171/RE-TRIANGLE/blob/722c96284f424a0abc5d38489580c99035f2f5a0/intro_gif.gif
-)
-
 Welcome to the official repository for our reproducibility research of "**TRIANGLE**", a similarity measure that is directly computed in the higher-dimensional space spanned by the modality embeddings. The code is implemented in Python using PyTorch and Distributed Processing to provide an efficient and fast implementation of the algorithm.
 
 The code in this repository has been used to research the reproducibility of the experiments conducted in the original 'TRIANGLE' paper. Furthermore, the repository contains our new additions. Our contributions include:
