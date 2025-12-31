@@ -22,6 +22,7 @@ The code in this repository has been used to research the reproducibility of the
 ## Table of Content
 - [Installation Guide](#installation-guide)
 - [Datasets](#datasets)
+- [Download basic encoder's pretrained checkpoints](#download-basic-encoders-pretrained-checkpoints)
 - [How to Run](#how-to-run)
   - [Zero Shot Audio and Video Retrieval](#zero-shot-audio-and-video-retrieval)
   - [Training From Scratch](#training-from-scratch)
@@ -119,6 +120,62 @@ python adhoc_scripts/extract_audio.py --video_root <Directory containing dataset
 ```
 
 Once the datasets have been downloaded properly, edit the config files inside the config/triangle/finetune_cfg directory to replace the preset dataset paths with your local system paths (where the datasets reside on your machine after downloading).
+
+## Download basic encoder's pretrained checkpoints
+
+Make a dir named pretrained_weights under the main work dir.
+
+<ol type=1>
+<li>
+Download evaclip weight:
+
+```
+wget -P pretrained_weights/clip/ https://huggingface.co/QuanSun/EVA-CLIP/resolve/main/EVA01_CLIP_g_14_psz14_s11B.pt
+```
+
+</li>
+<br>
+<li>
+Download beats weight from <a>https://github.com/microsoft/unilm/tree/master/beats</a>
+</li>
+<br>
+<li>
+Download bert weight:
+<br>
+
+```
+from transformers import BertModel, BertTokenizer
+bert = BertModel.from_pretrained('bert-base-uncased')
+bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+bert.save_pretrained('pretrained_weights/bert/bert-base-uncased')
+bert_tokenizer.save_pretrained('pretrained_weights/bert/bert-base-uncased')
+```
+
+</li>
+<br>
+<li>
+Download Pretrained Triangle checkpoint (on vast27m) from <a href="https://drive.google.com/file/d/1T-wuY-CzUp_PF8UuhKDqXEAL86obUpzj/view?usp=sharing">link</a>
+</li>
+</ol>
+<br>
+
+The processed pretrained_weights path should be as follows:
+
+```
+    ├── pretrained_weights
+    │   ├── beats
+    │   │   └── BEATs_iter3_plus_AS2M.pt
+    │   ├── bert
+    │   │      └── bert-base-uncased
+    │   ├── clip
+    │   │    └── EVA01_CLIP_g_14_psz14_s11B.pt
+    │   ├── triangle_pretraining
+    │   │    └── ckpt
+    │   │      └── model_step_200.pt
+    │   │    └── log
+    │   │      └── hps.json
+    │   │      └── log.txt
+```
 
 ## How to Run
 Now that the environment has been correctly installed and datasets have been downloaded (along with audio extraction), it is time to run the code.
