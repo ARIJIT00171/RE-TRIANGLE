@@ -26,7 +26,9 @@ The code in this repository has been used to research the reproducibility of the
 - [How to Run](#how-to-run)
   - [Zero Shot Audio and Video Retrieval](#zero-shot-audio-and-video-retrieval)
   - [Training From Scratch](#training-from-scratch)
+  - [Finetune on YouCook Data](#finetune-on-youcook-data)
   - [TRIANGLE Explainability](#triangle-explainability)
+  - [Training from Scratch on Toy Dataset](#training-from-scratch-on-toy-dataset)
 
 
 ## Installation Guide
@@ -250,6 +252,36 @@ python adhoc_scripts/ir_measures_eval.py \
     --output <path to directory where result csv will be stored>
 ```
 
+### Finetune on YouCook Data
+
+The Finetune on YouCook Data experiment aims to test the impact on the retrieval scores by fine-tuning the pre-trained checkpoint on out of domain data on which the checkpoint originally performed bad.  
+<br>
+To run the finetune on YouCook data experiment for YouCook dataset, run the following command in job file:
+
+```
+torchrun \
+    --nnodes 1 \
+    --node_rank 0 \
+    --nproc_per_node=4 \ # Number of GPUs for distributed run
+    --master_port=29501 \
+    distributed_run.py \
+      --model_type triangle \ # model_type can be vast, triangle or triangle_cos
+      --mode training \
+      --pretrain_dir <path to directory containing pretrained triangle checkpoint and weights for encoders used)> \
+      --config <config path for YouCook dataset (inside config/triangle/finetune_cfg directory)> \
+      --output_dir <Path to directory where results will be stored>
+```
+
+The outputs will be saved in the output_dir folder (passed as command line argument and created automatically by the code).
+This directory will also contain the generated trec files (created during evaluation). To obtain the new ranking metrics from these, run the adhoc_scripts/ir_measures_eval.py file using:
+<br>
+
+```
+python adhoc_scripts/ir_measures_eval.py \
+    <path to directory containing trec_runs directory (with generated trec files)> \
+    --output <path to directory where result csv will be stored>
+```
+
 ### TRIANGLE Explainability
 
 To run the TRIANGLE Explainability experiment, do the following: 
@@ -269,3 +301,36 @@ python adhoc_scripts/explain_sample_yc.py \
 2) After the above script has run, it will create a folder named "saved_features_sample". Compress it to create a zip file "saved_features_sample.zip".
 3) Open the adhoc_scripts/Explain_Triangle.ipynb notebook in Colab and Run the notebook. The first cell will prompt you to upload a file. Upload the "saved_features_sample.zip" created in previous step.
 4) After the remaining cells finish running, you can see the visualization results.
+
+### Training from Scratch on Toy Dataset
+
+The Training from Scratch on Toy Dataset experiment aims to diagnose optimization stability of the training process by allowing us to decouple the impact of the alignment loss from the complexity of real-world data. The Toy dataset comprises short video clips of moving geometric shapes, synthetic descriptive speech, and corresponding text captions 
+<br><br>
+To run the finetune on YouCook data experiment for YouCook dataset, 
+
+1. Run the adhoc_scripts/Generate_toy_dataset.ipynb notebook. After successful run, it will generate the toy dataset. Move the generated folder in the main dataset directory (where all other dataset folders are placed).<br>
+2. Create the config file for Toy dataset. To do this, create a new file inside the config/triangle/finetune_cfg directory by copying the contents of the config file for msrvtt data. Edit the paths of train and test directories by replacing them with the appropriate paths for the Toy dataset directories (from step 1).
+3. Run the following command in job file:
+
+```
+torchrun \
+    --nnodes 1 \
+    --node_rank 0 \
+    --nproc_per_node=4 \ # Number of GPUs for distributed run
+    --master_port=29501 \
+    distributed_run.py \
+      --model_type triangle \ # model_type can be vast, triangle or triangle_cos
+      --mode training \
+      --config <config path for Toy dataset (inside config/triangle/finetune_cfg directory)> \
+      --output_dir <Path to directory where results will be stored>
+```
+
+The outputs will be saved in the output_dir folder (passed as command line argument and created automatically by the code).
+This directory will also contain the generated trec files (created during evaluation). To obtain the new ranking metrics from these, run the adhoc_scripts/ir_measures_eval.py file using:
+<br>
+
+```
+python adhoc_scripts/ir_measures_eval.py \
+    <path to directory containing trec_runs directory (with generated trec files)> \
+    --output <path to directory where result csv will be stored>
+```
