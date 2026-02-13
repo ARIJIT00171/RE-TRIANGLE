@@ -306,7 +306,7 @@ python adhoc_scripts/explain_sample_yc.py \
 
 The Training from Scratch on Toy Dataset experiment aims to diagnose optimization stability of the training process by allowing us to decouple the impact of the alignment loss from the complexity of real-world data. The Toy dataset comprises short video clips of moving geometric shapes, synthetic descriptive speech, and corresponding text captions 
 <br><br>
-To run the finetune on YouCook data experiment for YouCook dataset, 
+To run the finetune on Toy dataset experiment for YouCook dataset, 
 
 1. Run the adhoc_scripts/Generate_toy_dataset.ipynb notebook. After successful run, it will generate the toy dataset. Move the generated folder in the main dataset directory (where all other dataset folders are placed).<br>
 2. Create the config file for Toy dataset. To do this, create a new file inside the config/triangle/finetune_cfg directory by copying the contents of the config file for msrvtt data. Edit the paths of train and test directories by replacing them with the appropriate paths for the Toy dataset directories (from step 1).
