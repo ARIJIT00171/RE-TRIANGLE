@@ -11,6 +11,8 @@ str_to_bool_mapper = {
     "no": False
 }
 
+# Config Handler
+
 
 def update_default_config_with_parse_args(parse_args):
     file_cfg = edict(json.load(open(parse_args.config)))

@@ -16,6 +16,8 @@ str_to_bool_mapper = {
     "no": False
 }
 
+# Model wrappers
+
 
 def gelu(x):
     """Implementation of the gelu activation function.

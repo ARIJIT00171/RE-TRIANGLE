@@ -18,6 +18,8 @@ str_to_bool_mapper = {
     "no": False
 }
 
+# TRIANGLE model definition
+
 
 class TRIANGLE(MMGeneralModule):
     """ VLP pretraining """

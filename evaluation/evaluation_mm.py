@@ -16,6 +16,8 @@ str_to_bool_mapper = {
     "no": False
 }
 
+# Model Evaluation utilities
+
 
 def evaluate_mm(model, val_dataloaders, final_config, global_step):
     eval_log = {}

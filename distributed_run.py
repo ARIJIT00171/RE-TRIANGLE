@@ -27,6 +27,7 @@ def run_main():
     if dist.get_rank() == 0:
         n_gpu = log_final_cfg(final_config)
 
+        # Initialize wandb
         wandb.init(
             # TODO IMP SET RIGHT BEFORE RUN
             project="Triangle_Reproduce",
@@ -47,12 +48,14 @@ def run_main():
         )
 
     if final_config.run_cfg.mode == 'training':
+        # Create Data Loaders
         train_loader = create_train_dataloaders(final_config, device)
         val_loaders = create_val_dataloaders(final_config, device)
 
         for name, loader in val_loaders.items():
             print(f"val_loader: {name} has {len(loader)} batches")
 
+        # Load Model and Optimizer
         model, optimizer_ckpt, start_step = build_model(final_config, device)
         optimizer = build_optimizer(model, final_config, optimizer_ckpt)
         if dist.get_rank() == 0:
@@ -62,9 +65,11 @@ def run_main():
                 LOGGER.info(f"group={i} init_lr={pg['init_lr']} n_params={n} req_grad_params={req}")
 
         if str_to_bool_mapper[final_config.run_cfg.first_eval] or str_to_bool_mapper[final_config.run_cfg.zero_shot]:
+            # In case of first eval True
             test(model, val_loaders, final_config)
             if str_to_bool_mapper[final_config.run_cfg.zero_shot]:
                 return
+        # Calling main training function
         train(model, optimizer, train_loader, val_loaders, final_config, start_step=start_step)
 
     elif final_config.run_cfg.mode == 'testing':
@@ -72,7 +77,7 @@ def run_main():
 
         model, _, _ = build_model(final_config, device)
         print("TESTING MODE")
-
+        # Calling main testing function
         test(model, val_loaders, final_config)
 
     else:

@@ -1,5 +1,7 @@
 import torch
 
+# Project wide utils
+
 
 class NoOp(object):
     """ useful for distributed training No-Ops """

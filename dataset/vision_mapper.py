@@ -12,6 +12,8 @@ import cv2
 from utils.logger import LOGGER
 from utils.utils import split
 
+# Class to handle vision input
+
 
 def check_extension(id, folder):
     files_in_folder = glob.glob(os.path.join(folder, '*'))

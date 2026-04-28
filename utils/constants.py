@@ -1,3 +1,5 @@
+# Project Constants
+
 # Pretrain Weights for models
 bert_pretrain_dir = '/home/scur1693/Triangle_Refactor/pretrained_weights/bert/bert-base-uncased'
 

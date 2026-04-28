@@ -1,6 +1,8 @@
 import logging
 import math
 
+# Logger Handling
+
 
 _LOG_FMT = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s'
 _DATE_FMT = '%m/%d/%Y %H:%M:%S'

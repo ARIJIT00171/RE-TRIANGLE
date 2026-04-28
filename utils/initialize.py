@@ -7,6 +7,8 @@ import torch.distributed as dist
 
 from utils.logger import LOGGER, add_log_to_file
 
+# Initialize distributed torch training
+
 
 def initialize_process(final_config):
     os.makedirs(os.path.join(final_config.run_cfg.output_dir), exist_ok=True)

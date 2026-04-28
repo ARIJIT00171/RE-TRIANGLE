@@ -2,6 +2,8 @@ import os
 import torch
 from os.path import join
 
+# Model Saving utils for easy reload
+
 
 class ModelSaver(object):
     def __init__(self, output_dir, prefix='model_step', suffix='pt', remove_before_ckpt=True):

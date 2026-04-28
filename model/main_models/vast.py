@@ -17,6 +17,8 @@ str_to_bool_mapper = {
     "no": False
 }
 
+# VAST model definition
+
 
 class VAST(MMGeneralModule):
     """ VLP pretraining """

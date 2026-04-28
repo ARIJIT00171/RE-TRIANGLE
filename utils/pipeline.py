@@ -18,6 +18,8 @@ str_to_bool_mapper = {
     "no": False
 }
 
+# Training and Test Pipeline functions
+
 
 def train(model, optimizer, train_loader, val_loaders, final_config, start_step=0):
     run_cfg = final_config.run_cfg

@@ -4,6 +4,8 @@ from torch.optim import Adam, Adamax, Optimizer
 
 from utils.logger import LOGGER
 
+# Build Optimizer utilities
+
 
 def build_optimizer(model, final_config, checkpoint_optim):
     vision_clip = ('vision_encoder_type' in final_config.model_cfg and

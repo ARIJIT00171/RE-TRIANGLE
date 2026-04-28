@@ -4,6 +4,8 @@ import torch
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 
+# Utils for torch distributed training
+
 
 class GatherLayer(torch.autograd.Function):
     """
