@@ -190,7 +190,7 @@ export WANDB_MODE=offline
 
 This will create wandb log files locally. These can later be uploaded to wandb using an API key.
 
-### Zero Shot Audio and Video Retrieval
+### Zero Shot Audio and Video Retrieval (Table 1 and Table 3)
 
 The audio/video retrieval experiment can be divided into two subtasks: 
 <br>
@@ -223,7 +223,7 @@ python adhoc_scripts/ir_measures_eval.py \
     --output <path to directory where result csv will be stored>
 ```
 
-### Training From Scratch
+### Training From Scratch (Table 4)
 
 The Training From Scratch experiment aims to perform a deeper study on the ability of TRIANGLE to better model the latent space by letting TRIANGLE losses learn from scratch on the MSR-VTT dataset for the multimodal text-to-audio/video (T2AV) and audio/video-to-text (AV2T) tasks.  
 <br>
@@ -252,7 +252,7 @@ python adhoc_scripts/ir_measures_eval.py \
     --output <path to directory where result csv will be stored>
 ```
 
-### Finetune on YouCook Data
+### Finetune on YouCook Data (Table 2)
 
 The Finetune on YouCook Data experiment aims to test the impact on the retrieval scores by fine-tuning the pre-trained checkpoint on out of domain data on which the checkpoint originally performed bad.  
 <br>
@@ -282,7 +282,7 @@ python adhoc_scripts/ir_measures_eval.py \
     --output <path to directory where result csv will be stored>
 ```
 
-### TRIANGLE Explainability
+### TRIANGLE Explainability (Figure 4)
 
 To run the TRIANGLE Explainability experiment, do the following: 
 <br>
@@ -302,7 +302,7 @@ python adhoc_scripts/explain_sample_yc.py \
 3) Open the adhoc_scripts/Explain_Triangle.ipynb notebook in Colab and Run the notebook. The first cell will prompt you to upload a file. Upload the "saved_features_sample.zip" created in previous step.
 4) After the remaining cells finish running, you can see the visualization results.
 
-### Training from Scratch on Toy Dataset
+### Training from Scratch on Toy Dataset (Table 6)
 
 The Training from Scratch on Toy Dataset experiment aims to diagnose optimization stability of the training process by allowing us to decouple the impact of the alignment loss from the complexity of real-world data. The Toy dataset comprises short video clips of moving geometric shapes, synthetic descriptive speech, and corresponding text captions 
 <br><br>
